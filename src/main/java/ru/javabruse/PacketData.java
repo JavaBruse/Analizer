@@ -2,6 +2,7 @@ package ru.javabruse;
 
 import lombok.Data;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
 @Data
@@ -46,16 +47,39 @@ public class PacketData {
 
     @Override
     public String toString() {
-        return String.format(
-                "%s %s:%d -> %s:%d [%s] %db %s%s%s",
-                timestamp.toString().substring(11, 23), // HH:mm:ss.SSS
-                srcIp, srcPort != null ? srcPort : "",
-                dstIp, dstPort != null ? dstPort : "",
-                protocol,
-                length,
-                application != null ? application + " " : "",
-                tcpFlags != null ? "[" + tcpFlags + "] " : "",
-                sni != null ? "SNI:" + sni : ""
-        );
+        return "PacketData{" +
+                "timestamp=" + timestamp +
+                ", srcIp='" + srcIp + '\'' +
+                ", srcPort=" + srcPort +
+                ", dstIp='" + dstIp + '\'' +
+                ", dstPort=" + dstPort +
+                ", protocol='" + protocol + '\'' +
+                ", length=" + length +
+                ", application='" + application + '\'' +
+                ", isEncrypted=" + isEncrypted +
+                ", tcpFlags='" + tcpFlags + '\'' +
+                ", isTls=" + isTls +
+                ", tlsVersion=" + tlsVersion +
+                ", sni='" + sni + '\'' +
+                ", alpn='" + alpn + '\'' +
+                ", cipherSuites=" + cipherSuites +
+                ", supportedGroups=" + supportedGroups +
+                ", supportedVersions=" + supportedVersions +
+                ", clientRandom=" + Arrays.toString(clientRandom) +
+                ", ja4Hash='" + ja4Hash + '\'' +
+                ", ja4sHash='" + ja4sHash + '\'' +
+                ", timeToLive=" + timeToLive +
+                ", isFragmented=" + isFragmented +
+                ", windowSize=" + windowSize +
+                ", mss=" + mss +
+                ", hasSackPermitted=" + hasSackPermitted +
+                ", geoCountry='" + geoCountry + '\'' +
+                ", geoCity='" + geoCity + '\'' +
+                ", asn='" + asn + '\'' +
+                ", isPrivateIp=" + isPrivateIp +
+                ", isLocalTraffic=" + isLocalTraffic +
+                ", packetDirection='" + packetDirection + '\'' +
+                ", packetsPerSecond=" + packetsPerSecond +
+                '}';
     }
 }
