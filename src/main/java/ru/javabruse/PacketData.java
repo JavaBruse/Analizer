@@ -1,35 +1,61 @@
 package ru.javabruse;
 
 import lombok.Data;
-
 import java.time.Instant;
+import java.util.List;
 
 @Data
 public class PacketData {
-    private Instant timestamp;    // Когда поймали пакет, например: "2024-01-15T14:30:25.123456Z"
-    private String srcIp;         // IP отправителя, например: "192.168.1.100"
-    private Integer srcPort;      // Порт отправителя, например: 54321 (null если нет порта)
-    private String dstIp;         // IP получателя, например: "8.8.8.8"
-    private Integer dstPort;      // Порт получателя, например: 443 (null если нет порта)
-    private String protocol;      // Протокол: "TCP", "UDP", "ICMP", например: "TCP"
-    private Integer length;       // Размер пакета в байтах, например: 1500
-    private String application;   // Приложение по порту, например: "HTTPS", "DNS", "SSH"
-    private Boolean isEncrypted;  // Шифрованный ли трафик (true для портов 443, 993 и т.д.)
-    private String tcpFlags;      // Флаги TCP: "SA" (SYN+ACK), "F" (FIN), например: "SA"
+    // Базовые метаданные
+    private Instant timestamp;    // Когда поймали пакет
+    private String srcIp;         // IP отправителя
+    private Integer srcPort;      // Порт отправителя (0-65535)
+    private String dstIp;         // IP получателя
+    private Integer dstPort;      // Порт получателя (0-65535)
+    private String protocol;      // Протокол: "TCP", "UDP", "ICMP"
+    private Integer length;       // Размер пакета в байтах
+    private String application;   // Приложение по порту/анализу
+    private Boolean isEncrypted;  // Шифрованный ли трафик
+    private String tcpFlags;      // Флаги TCP: "SA", "F", "R", "PSH", etc
+
+    // TLS/SSL данные (для портов 443, 8443, 993, 995)
+    private Boolean isTls;           // TLS трафик
+    private Integer tlsVersion;      // TLS version (0x0303=1.2, 0x0304=1.3)
+    private String sni;              // Server Name Indication (домен)
+    private String alpn;             // Application-Layer Protocol Negotiation
+    private List<Integer> cipherSuites; // Список шифров из ClientHello
+    private List<Integer> supportedGroups; // Elliptic curve groups
+    private List<Integer> supportedVersions; // Поддерживаемые TLS версии
+    private byte[] clientRandom;     // Client Random (32 bytes)
+    private String ja4Hash;          // JA4/TLS fingerprint (будущий анализ)
+    private String ja4sHash;         // JA4S/Server fingerprint
+
+    // Дополнительные поля для анализа
+    private Integer timeToLive;      // TTL из IP заголовка
+    private Boolean isFragmented;    // Фрагментирован ли пакет
+    private Integer windowSize;      // TCP window size
+    private Integer mss;             // Maximum Segment Size (из TCP options)
+    private Boolean hasSackPermitted;// TCP SACK разрешён
+    private String geoCountry;       // Страна по IP (будущее)
+    private String geoCity;          // Город по IP (будущее)
+    private String asn;              // Autonomous System Number
+    private Boolean isPrivateIp;     // Частный ли IP (10.x, 192.168.x, 172.16-31.x)
+    private Boolean isLocalTraffic;  // Трафик внутри локальной сети
+    private String packetDirection;  // "inbound", "outbound", "internal"
+    private Double packetsPerSecond; // Расчётная частота (будущее)
 
     @Override
     public String toString() {
-        return "PacketData{" +
-                "timestamp=" + timestamp +
-                ", srcIp='" + srcIp + '\'' +
-                ", srcPort=" + srcPort +
-                ", dstIp='" + dstIp + '\'' +
-                ", dstPort=" + dstPort +
-                ", protocol='" + protocol + '\'' +
-                ", length=" + length +
-                ", application='" + application + '\'' +
-                ", isEncrypted=" + isEncrypted +
-                ", tcpFlags='" + tcpFlags + '\'' +
-                '}';
+        return String.format(
+                "%s %s:%d -> %s:%d [%s] %db %s%s%s",
+                timestamp.toString().substring(11, 23), // HH:mm:ss.SSS
+                srcIp, srcPort != null ? srcPort : "",
+                dstIp, dstPort != null ? dstPort : "",
+                protocol,
+                length,
+                application != null ? application + " " : "",
+                tcpFlags != null ? "[" + tcpFlags + "] " : "",
+                sni != null ? "SNI:" + sni : ""
+        );
     }
 }
