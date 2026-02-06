@@ -28,7 +28,9 @@ public class Main {
 
         handle.loop(-1, (Packet packet) -> {
             PacketData data = PacketConverter.convert(packet);
-            log.info(data.toString());
+            if (!data.getDstIp().equals("172.16.1.33") || !data.getSrcIp().equals("172.16.1.33")){
+                log.info(data.toString());
+            }
         });
     }
 
