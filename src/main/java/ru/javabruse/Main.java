@@ -29,7 +29,7 @@ public class Main {
         handle.loop(-1, (Packet packet) -> {
             if (packet.contains(IpV4Packet.class)) {
                 IpV4Packet ip = packet.get(IpV4Packet.class);
-                log.info("%s:%d -> %s:%d [%s] %d bytes",
+                System.out.printf("%s:%d -> %s:%d [%s] %d bytes",
                         ip.getHeader().getSrcAddr(),
                         getSrcPort(packet),
                         ip.getHeader().getDstAddr(),
