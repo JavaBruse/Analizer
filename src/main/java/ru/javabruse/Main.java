@@ -28,7 +28,8 @@ public class Main {
 
         handle.loop(-1, (Packet packet) -> {
             PacketData data = PacketConverter.convert(packet);
-            if (!data.getDstIp().equals("172.16.1.33") || !data.getSrcIp().equals("172.16.1.33")){
+            if (data.getDstIp().equals("172.16.1.33") || !data.getSrcIp().equals("172.16.1.33")) {
+            } else {
                 log.info(data.toString());
             }
         });
