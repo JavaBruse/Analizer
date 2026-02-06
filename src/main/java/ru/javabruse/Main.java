@@ -2,7 +2,9 @@ package ru.javabruse;
 
 import org.pcap4j.core.*;
 import org.pcap4j.packet.*;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class Main {
     public static void main(String[] args) throws Exception {
         String interfaceName = args.length > 0 ? args[0] : "any";
@@ -13,25 +15,21 @@ public class Main {
                 : Pcaps.getDevByName(interfaceName);
 
         if (nif == null) {
-            System.err.println("Интерфейс не найден. Доступные:");
+            log.error("Интерфейс не найден. Доступные:");
             Pcaps.findAllDevs().forEach(dev ->
-                    System.err.println("  " + dev.getName() + " - " + dev.getDescription()));
+                    log.info("  " + dev.getName() + " - " + dev.getDescription()));
             return;
         }
 
-        System.out.println("Захват на: " + nif.getName());
+        log.info("Захват на: " + nif.getName());
 
-        // Захват с фильтром (без ARP)
         PcapHandle handle = nif.openLive(65536,
                 PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 100);
-        handle.setFilter("not arp", BpfProgram.BpfCompileMode.OPTIMIZE);
-        handle.setFilter("not (host 192.168.65.1 or host 192.168.65.7)",
-                BpfProgram.BpfCompileMode.OPTIMIZE);
-        // Бесконечный захват
+
         handle.loop(-1, (Packet packet) -> {
             if (packet.contains(IpV4Packet.class)) {
                 IpV4Packet ip = packet.get(IpV4Packet.class);
-                System.out.printf("%s:%d -> %s:%d [%s] %d bytes\n",
+                log.info("%s:%d -> %s:%d [%s] %d bytes",
                         ip.getHeader().getSrcAddr(),
                         getSrcPort(packet),
                         ip.getHeader().getDstAddr(),
