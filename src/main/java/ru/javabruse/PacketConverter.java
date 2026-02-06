@@ -82,6 +82,9 @@ public class PacketConverter {
                 data.setApplication("ICMP");
             }
         }
+        boolean encryptedByPort = isEncryptedPort(data.getDstPort()) ||
+                isEncryptedPort(data.getSrcPort());
+        data.setIsEncrypted(encryptedByPort);
     }
 
 
@@ -301,7 +304,8 @@ public class PacketConverter {
     }
 
     private static String detectApplication(PacketData data) {
-        if (data.getDstPort() == null) return "unknown";
+        Integer port = data.getDstPort() != null ? data.getDstPort() : data.getSrcPort();
+        if (port == null) return "unknown";
 
         // Если есть TLS данные
         if (Boolean.TRUE.equals(data.getIsTls())) {
@@ -309,6 +313,9 @@ public class PacketConverter {
             if (data.getAlpn() != null) return "TLS/" + data.getAlpn();
             return "TLS/encrypted";
         }
+
+        // Порты 443/8443 без TLS данных = возможный ответ сервера
+        if (port == 443 || port == 8443) return "HTTPS (server)";
 
         // По порту
         switch (data.getDstPort()) {
@@ -334,9 +341,11 @@ public class PacketConverter {
     }
 
     private static boolean shouldAnalyzeTls(PacketData data) {
-        return data.getDstPort() != null &&
-                (data.getDstPort() == 443 || data.getDstPort() == 8443 ||
-                        data.getDstPort() == 993 || data.getDstPort() == 995);
+        if (data.getDstPort() == null && data.getSrcPort() == null) return false;
+        return (data.getDstPort() != null && (data.getDstPort() == 443 || data.getDstPort() == 8443 ||
+                data.getDstPort() == 993 || data.getDstPort() == 995)) ||
+                (data.getSrcPort() != null && (data.getSrcPort() == 443 || data.getSrcPort() == 8443 ||
+                        data.getSrcPort() == 993 || data.getSrcPort() == 995));
     }
 
     private static void computeDerivedFields(PacketData data) {
