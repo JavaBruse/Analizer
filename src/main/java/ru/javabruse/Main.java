@@ -25,7 +25,8 @@ public class Main {
         PcapHandle handle = nif.openLive(65536,
                 PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 100);
         handle.setFilter("not arp", BpfProgram.BpfCompileMode.OPTIMIZE);
-
+        handle.setFilter("not (host 192.168.65.1 or host 192.168.65.7)",
+                BpfProgram.BpfCompileMode.OPTIMIZE);
         // Бесконечный захват
         handle.loop(-1, (Packet packet) -> {
             if (packet.contains(IpV4Packet.class)) {
