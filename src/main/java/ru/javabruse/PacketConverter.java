@@ -116,93 +116,119 @@ public class PacketConverter {
         if (payload.length < 5 || payload[0] != 0x16) return tlsData;
 
         try {
-            int ptr = 5; // После TLS Record Header
+            int ptr = 5; // После TLS Record Header (0x16 + версия + длина)
 
-            if (payload[ptr] != 0x01) return tlsData; // Не ClientHello
+            // Проверяем Handshake Type (1 = ClientHello)
+            if (ptr >= payload.length || payload[ptr] != 0x01) return tlsData;
             ptr++;
 
-            // Длина (3 байта)
+            // Длина ClientHello (3 байта)
+            if (ptr + 2 >= payload.length) return tlsData;
+            int clientHelloLen = ((payload[ptr] & 0xFF) << 16) |
+                    ((payload[ptr+1] & 0xFF) << 8) |
+                    (payload[ptr+2] & 0xFF);
             ptr += 3;
 
-            // Версия TLS
+            // TLS Version (2 байта)
+            if (ptr + 1 >= payload.length) return tlsData;
             tlsData.put("version", ((payload[ptr] & 0xFF) << 8) | (payload[ptr+1] & 0xFF));
             ptr += 2;
 
-            // Random (32 bytes)
+            // Random (32 байта)
+            if (ptr + 32 > payload.length) return tlsData;
             tlsData.put("random", Arrays.copyOfRange(payload, ptr, ptr + 32));
             ptr += 32;
 
-            // Session ID
+            // Session ID Length + пропускаем Session ID
+            if (ptr >= payload.length) return tlsData;
             int sessionIdLen = payload[ptr] & 0xFF;
             ptr += 1 + sessionIdLen;
 
-            // Cipher Suites
+            // Cipher Suites Length + список
+            if (ptr + 1 >= payload.length) return tlsData;
             int cipherSuitesLen = ((payload[ptr] & 0xFF) << 8) | (payload[ptr+1] & 0xFF);
             ptr += 2;
+
+            if (ptr + cipherSuitesLen > payload.length) return tlsData;
             List<Integer> ciphers = new ArrayList<>();
             for (int i = 0; i < cipherSuitesLen / 2; i++) {
-                int cipher = ((payload[ptr] & 0xFF) << 8) | (payload[ptr+1] & 0xFF);
+                int cipher = ((payload[ptr + i*2] & 0xFF) << 8) | (payload[ptr + i*2 + 1] & 0xFF);
                 ciphers.add(cipher);
-                ptr += 2;
             }
             tlsData.put("ciphers", ciphers);
+            ptr += cipherSuitesLen;
 
-            // Compression Methods
+            // Compression Methods Length + пропускаем
+            if (ptr >= payload.length) return tlsData;
             int compLen = payload[ptr] & 0xFF;
             ptr += 1 + compLen;
 
-            // Extensions
+            // Extensions Length
+            if (ptr + 1 >= payload.length) return tlsData;
             int extensionsLen = ((payload[ptr] & 0xFF) << 8) | (payload[ptr+1] & 0xFF);
             ptr += 2;
 
-            int endExtensions = ptr + extensionsLen;
-            while (ptr < endExtensions - 4) {
+            int extensionsEnd = ptr + extensionsLen;
+            if (extensionsEnd > payload.length) extensionsEnd = payload.length;
+
+            // Парсим расширения
+            while (ptr <= extensionsEnd - 4) {
                 int extType = ((payload[ptr] & 0xFF) << 8) | (payload[ptr+1] & 0xFF);
                 int extLen = ((payload[ptr+2] & 0xFF) << 8) | (payload[ptr+3] & 0xFF);
                 ptr += 4;
 
+                if (ptr + extLen > payload.length) break;
+
                 switch (extType) {
-                    case 0x0000: // SNI
-                        if (extLen > 5) {
-                            int sniListLen = ((payload[ptr+2] & 0xFF) << 8) | (payload[ptr+3] & 0xFF);
-                            if (sniListLen > 2) {
-                                int sniType = payload[ptr+4] & 0xFF;
-                                int sniLen = payload[ptr+5] & 0xFF;
-                                if (sniType == 0x00 && sniLen > 0) {
-                                    String sni = new String(payload, ptr + 6, sniLen, StandardCharsets.UTF_8);
+                    case 0x0000: // server_name (SNI)
+                        if (extLen > 9 && payload[ptr+2] == 0x00 && payload[ptr+3] == 0x00) {
+                            int sniListLen = ((payload[ptr+4] & 0xFF) << 8) | (payload[ptr+5] & 0xFF);
+                            if (sniListLen > 3 && payload[ptr+6] == 0x00) {
+                                int sniLen = ((payload[ptr+7] & 0xFF) << 8) | (payload[ptr+8] & 0xFF);
+                                if (sniLen > 0 && ptr + 9 + sniLen <= payload.length) {
+                                    String sni = new String(payload, ptr + 9, sniLen, StandardCharsets.UTF_8);
                                     tlsData.put("sni", sni);
                                 }
                             }
                         }
                         break;
-                    case 0x000A: // Supported Groups
+
+                    case 0x000A: // supported_groups
                         if (extLen > 2) {
                             List<Integer> groups = new ArrayList<>();
                             int groupsLen = ((payload[ptr] & 0xFF) << 8) | (payload[ptr+1] & 0xFF);
-                            for (int i = 0; i < groupsLen / 2 && i < 10; i++) {
+                            int maxGroups = Math.min(groupsLen / 2, extLen / 2 - 1);
+                            for (int i = 0; i < maxGroups; i++) {
                                 int group = ((payload[ptr+2+i*2] & 0xFF) << 8) | (payload[ptr+3+i*2] & 0xFF);
                                 groups.add(group);
                             }
                             tlsData.put("supported_groups", groups);
                         }
                         break;
-                    case 0x0010: // ALPN
+
+                    case 0x0010: // application_layer_protocol_negotiation (ALPN)
                         if (extLen > 2) {
                             int alpnLen = ((payload[ptr] & 0xFF) << 8) | (payload[ptr+1] & 0xFF);
                             int alpnPtr = ptr + 2;
-                            while (alpnPtr < ptr + 2 + alpnLen) {
+                            int end = alpnPtr + alpnLen;
+                            while (alpnPtr < end && alpnPtr < payload.length) {
                                 int protoLen = payload[alpnPtr] & 0xFF;
-                                String proto = new String(payload, alpnPtr + 1, protoLen, StandardCharsets.UTF_8);
-                                tlsData.put("alpn", proto);
+                                if (protoLen > 0 && alpnPtr + 1 + protoLen <= payload.length) {
+                                    String proto = new String(payload, alpnPtr + 1, protoLen, StandardCharsets.UTF_8);
+                                    tlsData.put("alpn", proto);
+                                    break; // Берём первый протокол
+                                }
                                 alpnPtr += 1 + protoLen;
                             }
                         }
                         break;
-                    case 0x002B: // Supported Versions
+
+                    case 0x002B: // supported_versions
                         if (extLen > 1) {
                             List<Integer> versions = new ArrayList<>();
                             int verLen = payload[ptr] & 0xFF;
-                            for (int i = 0; i < verLen / 2 && i < 5; i++) {
+                            int maxVersions = Math.min(verLen / 2, (extLen - 1) / 2);
+                            for (int i = 0; i < maxVersions; i++) {
                                 int ver = ((payload[ptr+1+i*2] & 0xFF) << 8) | (payload[ptr+2+i*2] & 0xFF);
                                 versions.add(ver);
                             }
@@ -213,7 +239,7 @@ public class PacketConverter {
                 ptr += extLen;
             }
         } catch (Exception e) {
-            // Игнорируем ошибки парсинга
+            // Пропускаем ошибки парсинга
         }
 
         return tlsData;
